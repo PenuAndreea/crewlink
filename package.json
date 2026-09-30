@@ -1,0 +1,21 @@
+{
+  "name": "crewlink",
+  "private": true,
+  "description": "Offline-first crew chat: NestJS API + React Native (Expo) app",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "api": "npm run start:dev -w @crewlink/api",
+    "mobile": "npm run start -w @crewlink/mobile",
+    "infra:up": "docker compose up -d",
+    "infra:down": "docker compose down",
+    "test": "npm run test -w @crewlink/api",
+    "typecheck": "npm run typecheck --workspaces --if-present"
+  },
+  "engines": {
+    "node": ">=22",
+    "npm": ">=11"
+  }
+}
