@@ -64,6 +64,17 @@ harder to override.
 or uptime check needs, and it gives the e2e test a real round trip to MongoDB. `@nestjs/terminus` is the
 fuller option, worth adding once there are more dependencies to check (RabbitMQ).
 
+### Flight numbers are normalised on write
+The API stores flight numbers without spaces and in uppercase (`SN2903`); the app adds the space for display.
+Without that, `"SN 2903"` and `"sn2903"` would be two different values and slip past the unique index on
+`{ flightNumber, scheduledDeparture }`. Normalising in one place (a Mongoose setter) is simpler than asking
+every client to send the same spelling.
+
+### The channels service is tested against a real MongoDB
+`ChannelsService` is a thin layer over MongoDB, and its important behaviour (unique index, matching inside an
+array, sorting) happens in the database. A mocked model would only test the mock, so the e2e test runs against a
+separate `crewlink-test` database that it drops afterwards. The cost: `npm run test:e2e` needs `npm run infra:up`.
+
 ## Learning log
 
 Notes on picking up NestJS, kept as I go.
@@ -157,3 +168,67 @@ under native ESM (mongoose is CommonJS, so Node can't see its named exports), bu
 handles that interop. Fix: `import mongoose, { type Connection } from 'mongoose'`. Lesson: run the built app
 (`nest build && node dist/main.js`) before trusting a green test run.
 
+### 3. Mongoose schemas: one class, two kinds of types
+
+In Nest a schema is a class with decorators, and `SchemaFactory.createForClass(Channel)` turns it into a
+Mongoose schema. The class also gives me the TypeScript type for free, so the shape is described only once.
+
+```ts
+@Prop({ required: true, type: [String] })
+memberIds: string[];
+```
+
+- **Runtime type vs compile-time type**: `type: [String]` tells *Mongoose* what to store (capital `String`, the
+  JavaScript constructor). `string[]` tells *TypeScript* what my code sees. For arrays Nest needs both: decorator
+  metadata only says "Array", not what's inside, so without `type` Mongoose stores an array of anything.
+- **`String` vs `string`, `[String]` vs `string[]`**: in a TypeScript type position, `String` is the wrapper object
+  (never use it) and `[String]` is a tuple of exactly one element.
+- **Setters run before validators**: `set` normalises the value on write (`" sn 2903"` → `SN2903`), then `match`
+  validates the cleaned value. So the regex never has to deal with spaces or lowercase.
+- **Indexes are objects of field → direction**: `{ flightNumber: 1, scheduledDeparture: 1 }`. With `{ unique: true }`
+  the *pair* must be unique: SN2903 may fly every day, but only once per departure. A unique index is not a
+  validator: only MongoDB enforces it, on write.
+- **Multikey index**: indexing an array field (`memberIds`) indexes every element, so "channels containing this
+  member" is a fast lookup.
+- **Storage type ≠ wire type**: `scheduledDeparture` is a `Date` in MongoDB (so it sorts and compares as a real
+  moment) but an ISO string in the JSON contract in `@crewlink/shared`.
+- **`Channel.name`** is not a schema field: every JavaScript class has a static `name` property, here `'Channel'`.
+  It's used as the model's injection token.
+
+**Testing a schema without a database**: `mongoose.model('Channel', ChannelSchema)` plus
+`await new Model({...}).validate()` runs setters and validators in memory. (`validateSync()` is deprecated in
+Mongoose 9.)
+
+### 4. Feature modules: `forFeature`, `@InjectModel` and HTTP exceptions
+
+```ts
+@Module({
+  imports: [MongooseModule.forFeature([{ name: Channel.name, schema: ChannelSchema }])],
+  providers: [ChannelsService],
+})
+export class ChannelsModule {}
+```
+
+| | Angular router | NestJS + Mongoose |
+|---|---|---|
+| Once, in the root module | `RouterModule.forRoot(routes)` | `MongooseModule.forRootAsync(...)` opens the connection |
+| In each feature module | `RouterModule.forChild(routes)` | `MongooseModule.forFeature([...])` registers models on it |
+
+- **`@InjectModel(Channel.name)`** gets the model registered by `forFeature`, by token, like `@InjectConnection()`.
+  The model is private to `ChannelsModule` unless I export it.
+- **`import { type Model } from 'mongoose'`**: type-only, because the token comes from `@InjectModel`, not from the
+  constructor type (the native-ESM rule from entry 2).
+- **HTTP exceptions from a service**: throwing `ConflictException` anywhere becomes a **409** response, with no
+  try/catch in the controller. The service translates MongoDB's duplicate-key error (code `11000`) into it, so
+  callers never see database error codes.
+- **Testing with a real database**: `Test.createTestingModule({ imports: [MongooseModule.forRoot(testUri), ChannelsModule] })`
+  builds only what the test needs, like `TestBed.configureTestingModule` in Angular. `getModelToken(Channel.name)`
+  fetches the model for setup and cleanup.
+
+**Gotcha: index builds are asynchronous.** Mongoose creates indexes in the background when the model is created,
+so a duplicate-key test can pass or fail depending on timing. `await channelModel.init()` waits until the
+indexes exist.
+
+**Gotcha: methods inside the constructor.** `constructor(...) { create() {} }` is a syntax error: the methods
+belong in the class body, after the constructor's closing `}`. The constructor body stays empty `{}`, because
+`private readonly` already stores the injected model on `this`.

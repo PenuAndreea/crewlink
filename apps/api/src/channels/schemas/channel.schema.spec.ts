@@ -97,4 +97,11 @@ describe('ChannelSchema', () => {
       expect.objectContaining({ unique: true }),
     ]);
   });
+
+  it('declares an index on memberIds + scheduledDeparture for the member channel list', () => {
+    expect(ChannelSchema.indexes()).toContainEqual([
+      { memberIds: 1, scheduledDeparture: 1 },
+      expect.anything(),
+    ]);
+  });
 });
