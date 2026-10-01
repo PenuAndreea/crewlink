@@ -23,6 +23,14 @@ describe('AppController (e2e)', () => {
       .expect('Hello World!');
   });
 
+  // Needs MongoDB running (npm run infra:up) and apps/api/.env.
+  it('/health (GET)', () => {
+    return request(app.getHttpServer())
+      .get('/health')
+      .expect(200)
+      .expect({ status: 'ok', mongo: 'connected' });
+  });
+
   afterEach(async () => {
     await app.close();
   });
