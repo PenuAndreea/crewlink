@@ -1,5 +1,8 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { type Types } from 'mongoose';
+import { type HydratedDocument, type Types } from 'mongoose';
+
+/** A Channel loaded from MongoDB: the class fields plus Mongoose document methods (save, toJSON…). */
+export type ChannelDocument = HydratedDocument<Channel>;
 
 @Schema({
   collection: 'channels',
@@ -39,3 +42,6 @@ ChannelSchema.index(
   { flightNumber: 1, scheduledDeparture: 1 },
   { unique: true },
 );
+
+// Serves findForMember: match on memberIds (a multikey index over the array), then sort by departure.
+ChannelSchema.index({ memberIds: 1, scheduledDeparture: 1 });
