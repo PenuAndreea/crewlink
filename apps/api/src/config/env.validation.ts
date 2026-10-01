@@ -16,16 +16,22 @@ export function validateEnv(config: Record<string, unknown>): Env {
 
   const port = Number(config.PORT ?? 3000);
   if (!Number.isInteger(port) || port <= 0 || port > 65535) {
-    errors.push(`PORT must be an integer between 1 and 65535, got "${String(config.PORT)}"`);
+    errors.push(
+      `PORT must be an integer between 1 and 65535, got "${String(config.PORT)}"`,
+    );
   }
 
   const mongoUri = config.MONGO_URI;
   if (typeof mongoUri !== 'string' || !/^mongodb(\+srv)?:\/\//.test(mongoUri)) {
-    errors.push('MONGO_URI must be a mongodb:// or mongodb+srv:// connection string');
+    errors.push(
+      'MONGO_URI must be a mongodb:// or mongodb+srv:// connection string',
+    );
   }
 
   if (errors.length > 0) {
-    throw new Error(`Invalid environment configuration:\n- ${errors.join('\n- ')}`);
+    throw new Error(
+      `Invalid environment configuration:\n- ${errors.join('\n- ')}`,
+    );
   }
 
   return { PORT: port, MONGO_URI: mongoUri as string };
