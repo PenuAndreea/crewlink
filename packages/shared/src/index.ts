@@ -16,7 +16,8 @@ export interface CrewMember {
 
 export interface FlightChannel {
   id: string;
-  flightNumber: string; // e.g. "SN 2903"
+  /** Normalised by the API, no space: "SN2903". The app adds the space for display ("SN 2903"). */
+  flightNumber: string;
   origin: string; // IATA, e.g. "BRU"
   destination: string; // IATA, e.g. "ZAG"
   scheduledDeparture: string; // ISO 8601
