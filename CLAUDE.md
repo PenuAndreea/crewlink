@@ -44,12 +44,13 @@ across many users.
 
 ## Current state
 - Scaffold done: monorepo, both apps generated, shared types, Docker Compose, README
-- The API is still the Nest "Hello World" starter; nothing connects to MongoDB or RabbitMQ yet
+- API connects to MongoDB (validated config via @nestjs/config, GET /health reports the connection); no RabbitMQ yet
+- Mongoose under native ESM: import types with `import { type X }` and runtime values via the default export (`mongoose.X`); named value imports crash `node dist/main.js` even though Vitest passes
 - The mobile app shows 2 CSS-module type errors until the first `expo start` generates expo-env.d.ts
 
 ## Roadmap
-1. API: MongoDB connection (@nestjs/config + MongooseModule.forRootAsync) ← NEXT
-2. API: channels + messages modules (schemas, services, controllers, DTOs + ValidationPipe)
+1. ~~API: MongoDB connection (@nestjs/config + MongooseModule.forRootAsync)~~ done
+2. API: channels + messages modules (schemas, services, controllers, DTOs + ValidationPipe) ← NEXT
 3. Auth: JWT + role guards (only OCC may post urgent messages)
 4. Real-time: Socket.IO gateway, typing indicators, read receipts, presence
 5. Mobile offline-first: local store (WatermelonDB or SQLite), outgoing queue, sync on reconnect,
